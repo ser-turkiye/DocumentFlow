@@ -1,19 +1,19 @@
 package ser;
 
-import com.ser.blueline.*;
+import com.ser.blueline.ICommentItem;
+import com.ser.blueline.IInformationObject;
+import com.ser.blueline.IUser;
 import com.ser.blueline.bpm.IProcessInstance;
 import com.ser.blueline.bpm.ITask;
 import de.ser.doxis4.agentserver.UnifiedAgent;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONObject;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 
-public class DFlowComment extends UnifiedAgent {
+public class DFlowFinish extends UnifiedAgent {
     Logger log = LogManager.getLogger();
     IProcessInstance processInstance;
     IInformationObject qaInfObj;
@@ -44,9 +44,19 @@ public class DFlowComment extends UnifiedAgent {
             XTRObjects.setSession(Utils.session);
 
             processInstance = task.getProcessInstance();
-            Utils.saveComment(processInstance, null, code);
+
+
+            document = Utils.getProcessDocument(processInstance);
+            if(document == null){throw new Exception("Process Document not found.");}
+
+            processInstance.setDescriptorValue("ObjectStatus", task.getCode());
+
+            JSONObject pcfg = Utils.getProcessConfig(document);
+
+            Utils.saveComment(processInstance, task.getFinishedBy(), code);
+            JSONObject bmks = Utils.getProcessBookmarks(task, processInstance, document);
+            Utils.sendProcessMail(pcfg, bmks, "Finish." + code);
             processInstance.commit();
-            log.info("Tested.");
 
         } catch (Exception e) {
             //throw new RuntimeException(e);
@@ -57,6 +67,6 @@ public class DFlowComment extends UnifiedAgent {
         }
 
         log.info("Finished");
-        return resultSuccess("Ended successfully");
+        return resultSuccess("Ended successfully [" + code + "]");
     }
 }

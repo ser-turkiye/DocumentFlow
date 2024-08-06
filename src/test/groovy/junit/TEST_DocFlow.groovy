@@ -2,10 +2,7 @@ package junit
 
 import de.ser.doxis4.agentserver.AgentExecutionResult
 import org.junit.*
-import ser.DFlowComment
-import ser.DFlowNext
-import ser.DFlowReject
-import ser.DFlowStart
+import ser.*
 
 class TEST_DocFlow {
 
@@ -23,9 +20,9 @@ class TEST_DocFlow {
 
     @Test
     void testForAgentResult() {
-        def agent = new DFlowReject()
+        def agent = new DFlowFinish()
 
-        binding["AGENT_EVENT_OBJECT_CLIENT_ID"] = "ST09BPM_DFLOW244c66a921-d41e-48bd-8323-219ed4361e52182024-06-14T08:30:51.092Z018"
+        binding["AGENT_EVENT_OBJECT_CLIENT_ID"] = "ST09BPM_DFLOW2407ab9881-b92b-4269-b3d9-8fe6ba5d6845182024-07-09T09:14:26.773Z0213"
 
         def result = (AgentExecutionResult)agent.execute(binding.variables)
         assert result.resultCode == 0

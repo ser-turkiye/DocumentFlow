@@ -158,11 +158,4 @@ public class ProcessHelper {
         return webcubeUrl.toString();
     }
 
-    public String getTaskURL(String taskID){
-        StringBuilder webcubeUrl = new StringBuilder();
-        webcubeUrl.append("?system=").append(session.getSystem().getName());
-        webcubeUrl.append("&action=showtask&home=1&reusesession=1&id=").append(taskID);
-        return webcubeUrl.toString();
-    }
-
 }

@@ -4,7 +4,6 @@ import com.ser.blueline.IDocumentServer;
 import com.ser.blueline.ISession;
 import com.ser.blueline.metaDataComponents.IStringMatrix;
 import com.ser.blueline.modifiablemetadata.IStringMatrixModifiable;
-import com.spire.ms.System.Exception;
 import org.json.JSONObject;
 
 import java.math.BigInteger;

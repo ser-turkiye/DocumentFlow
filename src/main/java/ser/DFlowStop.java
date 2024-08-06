@@ -1,19 +1,16 @@
 package ser;
 
-import com.ser.blueline.*;
+import com.ser.blueline.IInformationObject;
 import com.ser.blueline.bpm.IProcessInstance;
 import com.ser.blueline.bpm.ITask;
 import de.ser.doxis4.agentserver.UnifiedAgent;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 
-public class DFlowComment extends UnifiedAgent {
+public class DFlowStop extends UnifiedAgent {
     Logger log = LogManager.getLogger();
     IProcessInstance processInstance;
     IInformationObject qaInfObj;
@@ -44,8 +41,18 @@ public class DFlowComment extends UnifiedAgent {
             XTRObjects.setSession(Utils.session);
 
             processInstance = task.getProcessInstance();
-            Utils.saveComment(processInstance, null, code);
+
+            document = Utils.getProcessDocument(processInstance);
+            if(document == null){throw new Exception("Process Document not found.");}
+
+            processInstance.setDescriptorValue("ObjectStatus", "Send-Back");
+
+            processInstance.setDescriptorValues("_Approves", Arrays.asList(""));
+            processInstance.setDescriptorValue("_Approveds", "");
+
+            Utils.saveComment(processInstance, task.getFinishedBy(), "Send-Back");
             processInstance.commit();
+
             log.info("Tested.");
 
         } catch (Exception e) {

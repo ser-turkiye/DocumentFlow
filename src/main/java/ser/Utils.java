@@ -1,10 +1,7 @@
 package ser;
 
 import com.ser.blueline.*;
-import com.ser.blueline.bpm.IBpmService;
-import com.ser.blueline.bpm.IProcessInstance;
-import com.ser.blueline.bpm.IProcessType;
-import com.ser.blueline.bpm.ITask;
+import com.ser.blueline.bpm.*;
 import com.ser.blueline.metaDataComponents.IArchiveClass;
 import com.ser.blueline.metaDataComponents.IArchiveFolderClass;
 import com.ser.blueline.metaDataComponents.IStringMatrix;
@@ -28,10 +25,12 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -40,7 +39,7 @@ public class Utils {
     static ISession session = null;
     static IDocumentServer server = null;
     static IBpmService bpm;
-
+    static JSONObject processCfgs;
     static void loadDirectory(String path) {
         (new File(path)).mkdir();
     }
@@ -72,33 +71,6 @@ public class Utils {
         }
         if(rtrn == null){
             throw new Exception("Document not found.");
-        }
-        return rtrn;
-    }
-    static JSONObject getParamsByComp(String name, String[] cols, String colmKey, String colmComp, String comp) {
-        JSONObject rtrn = new JSONObject();
-        IStringMatrix matrix = Utils.server.getStringMatrix(name, Utils.session);
-
-        if(matrix == null){return rtrn;}
-        List<List<String>> rmtx = matrix.getRawRows();
-
-        int lcnt = (-1);
-        for(List<String> line : rmtx) {
-            lcnt++;
-            JSONObject ljsn = new JSONObject();
-            int clix = (-1);
-            for(String colm : cols){
-                clix++;
-                String cval = (line.size() < clix ? "" : line.get(clix));
-                ljsn.put(colm, cval);
-            }
-            String ixnm = (ljsn.has(colmKey) ? ljsn.getString(colmKey) : "");
-            if(ixnm.isEmpty()){continue;}
-
-            String icmp = (ljsn.has(colmComp) ? ljsn.getString(colmComp) : "");
-            if(icmp.isEmpty() || !icmp.equals(comp)){continue;}
-
-            rtrn.put(ixnm, ljsn);
         }
         return rtrn;
     }
@@ -180,17 +152,6 @@ public class Utils {
         folder.commit();
         return add2Node;
     }
-    public static String loadHtmlForMail(String htmlPath) throws Exception {
-        File htmlTemplateFile = new File(htmlPath);
-        String htmlString = FileUtils.readFileToString(htmlTemplateFile);
-        String title = "New Page";
-        String body = "This is Body";
-        htmlString = htmlString.replace("$title", title);
-        htmlString = htmlString.replace("$body", body);
-        File newHtmlFile = new File("path/new.html");
-        FileUtils.writeStringToFile(newHtmlFile, htmlString);
-        return htmlPath;
-    }
     public static void sendHTMLMail(JSONObject pars) throws Exception {
         JSONObject mcfg = Utils.getMailConfig();
 
@@ -223,6 +184,7 @@ public class Utils {
         Properties props = new Properties();
 
         props.put("mail.debug","true");
+        props.put("mail.smtp.debug", "true");
         props.put("mail.smtp.debug", "true");
 
         props.put("mail.smtp.host", host);
@@ -270,10 +232,16 @@ public class Utils {
 
         Multipart multipart = new MimeMultipart("mixed");
 
-        BodyPart htmlBodyPart = new MimeBodyPart();
-        htmlBodyPart.setContent(getHTMLFileContent(pars.getString("BodyHTMLFile")), "text/html; charset=UTF-8"); //5
-        multipart.addBodyPart(htmlBodyPart);
-
+        if(pars.has("BodyHTMLFile")) {
+            BodyPart htmlBodyPart02 = new MimeBodyPart();
+            htmlBodyPart02.setContent(getHTMLFileContent(pars.getString("BodyHTMLFile")), "text/html; charset=UTF-8"); //5
+            multipart.addBodyPart(htmlBodyPart02);
+        }
+        if(pars.has("BodyHTMLText")) {
+            BodyPart htmlBodyPart01 = new MimeBodyPart();
+            htmlBodyPart01.setContent(getHTMLContentClear(pars.getString("BodyHTMLText")), "text/html; charset=UTF-8"); //5
+            multipart.addBodyPart(htmlBodyPart01);
+        }
         String[] atchs = attachments.split("\\;");
         for (String atch : atchs){
             if(atch.isEmpty()){continue;}
@@ -296,12 +264,13 @@ public class Utils {
     }
     public static String getHTMLFileContent (String path) throws Exception {
         String rtrn = new String(Files.readAllBytes(Paths.get(path)), "UTF-8");
+        return getHTMLContentClear(rtrn);
+    }
+    public static String getHTMLContentClear (String strg) throws Exception {
+        String rtrn = strg;
         rtrn = rtrn.replace("\uFEFF", "");
         rtrn = rtrn.replace("ï»¿", "");
         return rtrn;
-    }
-    public static JSONObject getSystemConfig() throws Exception {
-        return getSystemConfig(null);
     }
     public static void copyDescriptors(IInformationObject sour, IInformationObject targ) throws Exception {
         IValueDescriptor[] sdls = sour.getDescriptorList();
@@ -314,31 +283,209 @@ public class Utils {
             );
         }
     }
-    public static JSONObject getSystemConfig(IStringMatrix mtrx) throws Exception {
-        if(mtrx == null){
-            mtrx = server.getStringMatrix("CCM_SYSTEM_CONFIG", session);
+    public static ICommentItem saveComment(IProcessInstance processInstance, IUser user, String code) throws Exception {
+        String cmmt = processInstance.getDescriptorValue("ObjectDescription", String.class);
+        cmmt = (cmmt == null || cmmt.isBlank() ? "" : (!code.isBlank() ? "(" + code + ") " : "") + cmmt);
+
+        if(cmmt.isBlank()) {return null;}
+
+        IUser musr = user != null ? user : processInstance.getModificator();
+        IAdditionalItems<ICommentItem> cmts = processInstance.getCommentItems();
+        ICommentItem ncmt = server.createCommentItem(session,
+                (musr != null ? musr.getFullName() + " ## " : "") +
+                        cmmt, "text/plain");
+        cmts.addItem(ncmt);
+
+        processInstance.setDescriptorValue("ObjectDescription", "");
+        return ncmt;
+    }
+    public static String sendProcessMail(JSONObject pcfg, JSONObject bmks, String mnam) throws Exception {
+        if(!pcfg.has("Mail." + mnam)){return "No-Config";}
+        JSONObject mdef = pcfg.getJSONObject("Mail." + mnam);
+        for(String keym : mdef.keySet()){
+            String kval = mdef.getString(keym);
+            for(String keyb : bmks.keySet()) {
+                if (kval.contains("{{LINK@" + keyb + "}}")) {
+                    String klab = bmks.has(keyb + ".label") && bmks.getString(keyb + ".label") != null &&
+                            !bmks.getString(keyb + ".label").isBlank() ? bmks.getString(keyb + ".label") : bmks.getString(keyb);
+
+                    kval = kval.replaceAll(Pattern.quote("{{LINK@" + keyb + "}}"),
+                            "<a href=\"" + bmks.getString(keyb) + "\">" + klab + "</a>");
+                }
+                if (kval.contains("{{" + keyb + "}}")) {
+                    kval = kval.replaceAll(Pattern.quote("{{" + keyb + "}}"),
+                            bmks.getString(keyb));
+                }
+            }
+
+            mdef.put(keym, kval);
         }
+        try {
+            Utils.sendHTMLMail(mdef);
+        } catch(Exception ex){
+            log.error("** Send-Mail-Exception    : " + ex.getMessage());
+            log.error("              Class       : " + ex.getClass());
+            log.error("              Stack-Trace : " + Arrays.toString(ex.getStackTrace()));
+        }
+        return "";
+    }
+
+    public static String getTaskURL(String taskID){
+        StringBuilder webcubeUrl = new StringBuilder();
+        webcubeUrl.append("?system=").append(session.getSystem().getName());
+        webcubeUrl.append("&action=showtask&home=1&reusesession=1&id=").append(taskID);
+        return webcubeUrl.toString();
+    }
+    public static JSONObject getProcessBookmarks(ITask task, IProcessInstance processInstance, IInformationObject document) throws Exception {
+        JSONObject mcfg = Utils.getMailConfig();
+
+        JSONObject rtrn = new JSONObject("{}");
+        rtrn.put("ProcessOwner", "");
+        rtrn.put("ProcessName", processInstance.getDisplayName());
+        rtrn.put("Approveds", "");
+        rtrn.put("Reviewers", "");
+        rtrn.put("Status", "");
+        rtrn.put("Comments", "");
+        rtrn.put("DoxisLink", mcfg.getString("webBase") + getTaskURL(processInstance.getID()));
+        rtrn.put("DoxisLink.label", processInstance.getDisplayName());
+
+        IUser processOwner = processInstance.getOwner();
+        if(processOwner != null){
+            rtrn.put("ProcessOwner", (processOwner.getEMailAddress() != null ? processOwner.getEMailAddress() : ""));
+        }
+
+        List<String> apds = processInstance.getDescriptorValues("_Approves", String.class);
+        apds = (apds == null ? new ArrayList<>() : apds);
+
+        List<String> mpds = new ArrayList<>();
+        if(apds != null && apds.size() > 0) {
+            for(String apvd : apds){
+                IWorkbasket uwbk = bpm.getWorkbasket(apvd);
+                if(uwbk == null){continue;}
+                if(uwbk.getAssociatedOrgaElement() == null){continue;}
+
+                if(uwbk.getAssociatedOrgaElement().getOrgaElementType() == OrgaElementType.USER) {
+                    IUser upvd = server.getUser(session, uwbk.getAssociatedOrgaElement().getID());
+                    if (upvd == null) {
+                        continue;
+                    }
+                    String mpvd = upvd.getEMailAddress();
+                    mpvd = (mpvd == null ? "" : mpvd);
+                    if (mpvd.isBlank()) {
+                        continue;
+                    }
+                    if (mpds.contains(mpvd)) {
+                        continue;
+                    }
+                    mpds.add(mpvd);
+                }
+            }
+        }
+        if(mpds != null && mpds.size() > 0){
+            rtrn.put("Approveds", String.join(";", mpds));
+        }
+        List<String> rwds = processInstance.getDescriptorValues("_Reviewers", String.class);
+        rwds = (rwds == null ? new ArrayList<>() : rwds);
+
+        List<String> mrws = new ArrayList<>();
+        if(rwds != null && rwds.size() > 0) {
+            for(String rvwr : rwds){
+                IWorkbasket urvw = bpm.getWorkbasket(rvwr);
+                if(urvw == null){continue;}
+                if(urvw.getAssociatedOrgaElement() == null){continue;}
+
+                if(urvw.getAssociatedOrgaElement().getOrgaElementType() == OrgaElementType.USER) {
+                    IUser usrv = server.getUser(session, urvw.getAssociatedOrgaElement().getID());
+                    if (usrv == null) {
+                        continue;
+                    }
+                    String msrv = usrv.getEMailAddress();
+                    msrv = (msrv == null ? "" : msrv);
+                    if (msrv.isBlank()) {
+                        continue;
+                    }
+                    if (mpds.contains(msrv)) {
+                        continue;
+                    }
+                    mrws.add(msrv);
+                }
+            }
+        }
+        if(mrws != null && mrws.size() > 0){
+            rtrn.put("Reviewers", String.join(";", mrws));
+        }
+
+        if(task.getCode() != null && !task.getCode().isBlank()){
+            rtrn.put("Status", task.getCode());
+        }
+
+        IAdditionalItems<ICommentItem> cmts = processInstance.getCommentItems();
+        List<ICommentItem> lcms = cmts.getItems();
+
+        List<String> mcms = new ArrayList<>();
+        if(lcms != null && lcms.size() > 0) {
+            for (ICommentItem cmmt : lcms) {
+                Date dcm1 = (cmmt.getCreationDate() != null ? cmmt.getCreationDate() : new Date());
+                mcms.add((dcm1!= null ? dateTimeToString(dcm1) : "**/**/**** **:**:**") + "\t " +
+                        cmmt.getComment());
+            }
+        }
+        if(mcms != null && mcms.size() > 0){
+            Collections.reverse(mcms);
+            rtrn.put("Comments", String.join("\n\r --- --- --- --- \n\r", mcms));
+        }
+        return rtrn;
+    }
+    public static JSONObject getProcessConfig(IInformationObject docu) throws Exception {
+        String db = docu.getDatabaseName();
+        String cls = docu.getClassID();
+        JSONObject pcfs = getAllProcessConfigs();
+        if(pcfs.has(db + "@" + cls)){
+            return pcfs.getJSONObject(db + "@" + cls);
+        }
+        if(pcfs.has("*@" + cls)){
+            return pcfs.getJSONObject("*@" + cls);
+        }
+        if(pcfs.has(db + "@*")){
+            return pcfs.getJSONObject(db + "@*");
+        }
+        if(pcfs.has( "*@*")){
+            return pcfs.getJSONObject("*@*");
+        }
+        return new JSONObject();
+    }
+    public static JSONObject getAllProcessConfigs() throws Exception {
+        if(processCfgs != null){return processCfgs;}
+
+        IStringMatrix  mtrx = server.getStringMatrix("DOC_FLOW_PROCESS_CONFIGS", session);
         if(mtrx == null) throw new Exception("SystemConfig Global Value List not found");
 
         List<List<String>> rawTable = mtrx.getRawRows();
 
-        String srvn = session.getSystem().getName().toUpperCase();
         JSONObject rtrn = new JSONObject();
         for(List<String> line : rawTable) {
             String name = line.get(0);
-            if(!name.toUpperCase().startsWith(srvn + ".")){continue;}
-            name = name.substring(srvn.length() + ".".length());
-            rtrn.put(name, line.get(1));
+            name = (name == null ? "" : name);
+            if(name.isBlank()){continue;}
+
+            String catg = line.get(1);
+            catg = (catg == null ? "" : catg);
+            if(catg.isBlank()){continue;}
+
+
+            String cnfg = line.get(2);
+            cnfg = (cnfg == null || cnfg.isBlank() ? "{}" : cnfg);
+
+            JSONObject rctg = (rtrn.has(name) ? rtrn.getJSONObject(name) : new JSONObject());
+
+            rctg.put(catg, new JSONObject(cnfg));
+            rtrn.put(name, rctg);
         }
+        processCfgs = rtrn;
         return rtrn;
     }
     public static JSONObject getMailConfig() throws Exception {
-        return getMailConfig(null);
-    }
-    public static JSONObject getMailConfig(IStringMatrix mtrx) throws Exception {
-        if(mtrx == null) {
-            mtrx = server.getStringMatrix("CCM_MAIL_CONFIG", session);
-        }
+        IStringMatrix mtrx = server.getStringMatrix("DOC_FLOW_MAIL_CONFIGS", session);
         if(mtrx == null) throw new Exception("MailConfig Global Value List not found");
         List<List<String>> rawTable = mtrx.getRawRows();
 
@@ -377,6 +524,10 @@ public class Utils {
     public static String dateToString(Date dval) throws Exception {
         if(dval == null) return "";
         return new SimpleDateFormat("dd/MM/yyyy").format(dval);
+    }
+    public static String dateTimeToString(Date dval) throws Exception {
+        if(dval == null) return "";
+        return new SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(dval);
     }
     public static String zipFiles(String zipPath, String pdfPath, List<String> expFilePaths) throws IOException {
         if(expFilePaths.size() == 0){return "";}

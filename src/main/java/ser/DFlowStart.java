@@ -5,9 +5,11 @@ import com.ser.blueline.ILink;
 import com.ser.blueline.bpm.IProcessInstance;
 import com.ser.blueline.bpm.ITask;
 import de.ser.doxis4.agentserver.UnifiedAgent;
+import org.apache.commons.collections4.list.AbstractListDecorator;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,8 +25,7 @@ public class DFlowStart extends UnifiedAgent {
     ProcessHelper helper;
     ITask task;
     IInformationObject document;
-    String compCode;
-    String reqId;
+    String code;
     @Override
     protected Object execute() {
         if (getEventTask() == null)
@@ -40,6 +41,7 @@ public class DFlowStart extends UnifiedAgent {
         Utils.loadDirectory(Conf.Paths.MainPath);
         
         task = getEventTask();
+        code = task.getCode();
 
         try {
 
@@ -48,12 +50,27 @@ public class DFlowStart extends UnifiedAgent {
 
             processInstance = task.getProcessInstance();
 
-            /*
             document = Utils.getProcessDocument(processInstance);
-            */
+            if(document == null){throw new Exception("Process Document not found.");}
 
             List<String> aprs = Utils.getApprovers(processInstance);
+            if(aprs == null || aprs.size() == 0){throw new Exception("Approver(s) not found.");}
+
+            processInstance.setDescriptorValue("ObjectStatus", "Approval");
             processInstance.setDescriptorValues("_Approvers", aprs);
+            processInstance.setDescriptorValues("_Approves", Arrays.asList(""));
+            processInstance.setDescriptorValue("_Approveds", "");
+
+            String pttl = "";
+            if(Utils.hasDescriptor(document, "ObjectName")){
+                pttl = document.getDescriptorValue("ObjectName", String.class);
+                pttl = (pttl == null ? "" : pttl);
+            }
+            if(!pttl.isBlank()) {
+                processInstance.setSubject(pttl);
+            }
+
+            Utils.saveComment(processInstance, task.getFinishedBy(), "Start-Approval");
             processInstance.commit();
 
             log.info("Tested.");

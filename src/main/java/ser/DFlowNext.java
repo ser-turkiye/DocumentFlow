@@ -20,8 +20,7 @@ public class DFlowNext extends UnifiedAgent {
     ProcessHelper helper;
     ITask task;
     IInformationObject document;
-    String compCode;
-    String reqId;
+    String code;
     @Override
     protected Object execute() {
         if (getEventTask() == null)
@@ -37,6 +36,7 @@ public class DFlowNext extends UnifiedAgent {
         Utils.loadDirectory(Conf.Paths.MainPath);
         
         task = getEventTask();
+        code = task.getCode();
 
         try {
 
@@ -45,27 +45,43 @@ public class DFlowNext extends UnifiedAgent {
 
             processInstance = task.getProcessInstance();
 
-            /*
-            document = Utils.getProcessDocument(processInstance);
-            */
+            List<String> apds = processInstance.getDescriptorValues("_Approves", String.class);
+            apds = (apds == null ? new ArrayList<>() : apds);
+
+            String capd = processInstance.getDescriptorValue("_CurrentApprover", String.class);
+            capd = (capd == null ? ""  : capd);
+            if(!capd.isBlank()){apds.add(capd);}
+
+
+            processInstance.setDescriptorValues("_Approves", Arrays.asList(""));
+            processInstance.setDescriptorValue("_Approveds", "");
+
+            if(apds != null && apds.size() > 0) {
+                processInstance.setDescriptorValues("_Approves", apds);
+                processInstance.setDescriptorValue("_Approveds", String.join(";", apds));
+            }
 
             List<String> aprs = processInstance.getDescriptorValues("_Approvers", String.class);
-            aprs = (aprs == null ? new ArrayList<>() : aprs);
+            aprs = (aprs == null ? Arrays.asList("") : aprs);
+
             List<String> naps = new ArrayList<>();
             String capr = "";
             for(String appr : aprs){
-                if(appr == null || appr.isEmpty()){continue;}
-                if(capr.isEmpty()){
+                if(appr == null || appr.isBlank()){continue;}
+                if(capr.isBlank()){
                     capr = appr;
                     continue;
                 }
                 naps.add(appr);
             }
-            processInstance.setDescriptorValue("_CurrentApprover", capr);
-            processInstance.setDescriptorValue("_Approvers", "");
-            if(naps.size() > 0) {
-                processInstance.setDescriptorValues("_Approvers", naps);
+            if(naps == null || naps.size() == 0){naps = Arrays.asList("");}
+
+            if(!capr.isBlank()){
+                Utils.saveComment(processInstance, task.getFinishedBy(), "Approval");
             }
+
+            processInstance.setDescriptorValue("_CurrentApprover", capr);
+            processInstance.setDescriptorValues("_Approvers", naps);
             processInstance.commit();
 
             log.info("Tested.");
