@@ -31,6 +31,8 @@ import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -45,6 +47,49 @@ public class Utils {
     }
 
 
+    static List<String> getReviewers(IProcessInstance proc){
+        List<String> rtrn = new ArrayList<>();
+
+        for(int i=1;i<99;i++){
+            String ix = StringUtils.right("00" + i, 2);
+            String fldx = "_Approver" + ix;
+            if(!Utils.hasDescriptor(proc, fldx)){break;}
+
+            String sval = proc.getDescriptorValue(fldx, String.class);
+            if(sval == null || sval.isEmpty()){continue;}
+            if(rtrn.contains(sval)){continue;}
+            rtrn.add(sval);
+        }
+
+        if(Utils.hasDescriptor(proc, "_OtherReviewers")){
+            List<String> orvs = proc.getDescriptorValues("_OtherReviewers", String.class);
+            orvs = (orvs == null ? new ArrayList<>() : orvs);
+
+            for(String orvw : orvs){
+                if(orvw == null || orvw.isBlank()){continue;}
+                if(rtrn.contains(orvw)){continue;}
+                rtrn.add(orvw);
+            }
+        }
+
+        return rtrn;
+    }
+    static List<String> getAbacOrgaReadAdds(IInformationObject docu){
+        List<String> rtrn = new ArrayList<>();
+
+        if(Utils.hasDescriptor(docu, "AbacOrgaReadAdd")){
+            List<String> orvs = docu.getDescriptorValues("AbacOrgaReadAdd", String.class);
+            orvs = (orvs == null ? new ArrayList<>() : orvs);
+
+            for(String orvw : orvs){
+                if(orvw == null || orvw.isBlank()){continue;}
+                if(rtrn.contains(orvw)){continue;}
+                rtrn.add(orvw);
+            }
+        }
+
+        return rtrn;
+    }
     static List<String> getApprovers(IProcessInstance proc){
         List<String> rtrn = new ArrayList<>();
 
@@ -73,6 +118,106 @@ public class Utils {
             throw new Exception("Document not found.");
         }
         return rtrn;
+    }
+
+    public static String updateLinksTaskInfo(IUser cusr, IProcessInstance processInstance, String taskName){
+        String orgaName = (cusr != null ? cusr.getFullName() : "");
+
+        List<IInformationObject> list = new ArrayList<>();
+        IInformationObject parent = processInstance.getMainInformationObject();
+        if(parent != null && !list.stream().filter(o -> o.getID().equals(parent.getID())).findFirst().isPresent()){
+            list.add(parent);
+        }
+        List<ILink> links = processInstance.getLoadedInformationObjectLinks().getLinks();
+        for(ILink link : links){
+            IInformationObject lino = link.getTargetInformationObject();
+            if(lino != null && !list.stream().filter(o -> o.getID().equals(lino.getID())).findFirst().isPresent()){
+                list.add(lino);
+            }
+        }
+        for(IInformationObject item : list) {
+            if(updInfObjTaskInfo(item, processInstance, taskName, orgaName)){
+                item.commit();
+            }
+        }
+        return "";
+    }
+    public static boolean updInfObjTaskInfo(IInformationObject infObj, IProcessInstance proi, String taskName, String orgaName){
+        if(!Utils.hasDescriptor(infObj, "ccmPrjDocWFProcessName")){
+            return false;
+        }
+        if(!Utils.hasDescriptor(infObj, "ccmPrjDocWFTaskName")){
+            return false;
+        }
+        if(!Utils.hasDescriptor(infObj, "ccmPrjDocWFTaskCreation")){
+            return false;
+        }
+        if(!Utils.hasDescriptor(infObj, "ccmPrjDocWFTaskRecipients")){
+            return false;
+        }
+        infObj.setDescriptorValue("ccmPrjDocWFProcessName",
+                proi.getDisplayName()
+        );
+        infObj.setDescriptorValue("ccmPrjDocWFTaskName",
+                taskName
+        );
+        infObj.setDescriptorValue("ccmPrjDocWFTaskCreation",
+                (new SimpleDateFormat("yyyyMMdd")).format(new Date())
+        );
+        infObj.setDescriptorValue("ccmPrjDocWFTaskRecipients",
+                orgaName
+        );
+
+        return true;
+    }
+    public static void linkedDocUpdate(IProcessInstance processInstance, List<String> wbcs){
+        if(wbcs == null || wbcs.isEmpty()){return;}
+
+        //List<String> lids = new ArrayList<>();
+        List<IInformationObject> list = new ArrayList<>();
+        IInformationObject parent = processInstance.getMainInformationObject();
+        if(parent != null && !list.stream().filter(o -> o.getID().equals(parent.getID())).findFirst().isPresent()){
+            list.add(parent);
+            //lids.add(parent.getID());
+        }
+        List<ILink> links = processInstance.getLoadedInformationObjectLinks().getLinks();
+        for(ILink link : links){
+            IInformationObject lino = link.getTargetInformationObject();
+            if(lino != null && !list.stream().filter(o -> o.getID().equals(lino.getID())).findFirst().isPresent()){
+                list.add(lino);
+                //lids.add(parent.getID());
+            }
+        }
+        List<String> readers = new ArrayList<>();
+        for(String wbc1 : wbcs){
+            IWorkbasket wb = Utils.bpm.getWorkbasket(wbc1);
+            if(wb.getAssociatedOrgaElement() == null){continue;}
+            readers.add(wb.getAssociatedOrgaElement().getName());
+        }
+        if(readers == null || readers.isEmpty()){return;}
+
+        for(IInformationObject item : list){
+            boolean update = false;
+            if(item.getClassID().equals(Conf.DocClasses.OrgUnitDocs)){
+                if(Utils.hasDescriptor(item, "AbacOrgaReadAdd")) {
+                    List<String> rds1 = item.getDescriptorValues("AbacOrgaReadAdd", String.class);
+                    rds1 = (rds1 != null && !rds1.isEmpty() ? rds1 : new ArrayList<>());
+
+                    rds1 = Stream.of(rds1, readers)
+                            .flatMap(java.util.Collection::stream).collect(Collectors.toList());
+
+                    Set<String> setRtrn = new HashSet<>(rds1);
+                    rds1.clear();
+                    rds1.addAll(setRtrn);
+
+                    item.setDescriptorValues("AbacOrgaReadAdd", rds1);
+                    update = true;
+                }
+            }
+            if(update){
+                item.commit();
+            }
+        }
     }
     public static boolean hasDescriptor(IInformationObject object, String descName){
         IDescriptor[] descs = session.getDocumentServer().getDescriptorByName(descName, session);
@@ -283,16 +428,44 @@ public class Utils {
             );
         }
     }
-    public static ICommentItem saveComment(IProcessInstance processInstance, IUser user, String code) throws Exception {
+    public static ITask getLastFinishedTask(IProcessInstance processInstance) throws Exception {
+        Collection<ITask> tasks = processInstance.findTasks(TaskStatus.COMPLETED);
+        ITask rtrn = null;
+        for(ITask task : tasks){
+            if(task.getCurrentWorkbasket() == null){continue;}
+            if(task.getFinishedDate() == null){continue;}
+            if(task.getFinishedBy() == null){continue;}
+            if(task.getFinishedBy().getLicenseType() == LicenseType.TECHNICAL_USER){continue;}
+            if(rtrn != null && rtrn.getFinishedDate().before(task.getFinishedDate())){continue;}
+            rtrn = task;
+        }
+        return rtrn;
+    }
+    public static ICommentItem saveComment(IProcessInstance processInstance, ITask ctask, String code) throws Exception {
         String cmmt = processInstance.getDescriptorValue("ObjectDescription", String.class);
-        cmmt = (cmmt == null || cmmt.isBlank() ? "" : (!code.isBlank() ? "(" + code + ") " : "") + cmmt);
+        cmmt = (cmmt == null || cmmt.isBlank() ? "" :
+                    (code != null && !code.isBlank() ? "(" + code + ") " : "") + cmmt);
 
         if(cmmt.isBlank()) {return null;}
 
-        IUser musr = user != null ? user : processInstance.getModificator();
+        IUser user = processInstance.getModificator();
+
+        /*
+        ITask task = getLastFinishedTask(processInstance);
+        task = task == null ? ctask : task;
+        IUser user = task.getFinishedBy();
+        user = user == null || user.getLicenseType() == LicenseType.TECHNICAL_USER ? processInstance.getModificator() : user;
+        if((user == null || user.getLicenseType() == LicenseType.TECHNICAL_USER) && task.getCurrentWorkbasket() != null){
+            IWorkbasket wb = task.getCurrentWorkbasket();
+            if(wb.getAssociatedOrgaElement() != null) {
+                user = (IUser) wb.getAssociatedOrgaElement();
+            }
+        }
+        */
+
         IAdditionalItems<ICommentItem> cmts = processInstance.getCommentItems();
         ICommentItem ncmt = server.createCommentItem(session,
-                (musr != null ? musr.getFullName() + " ## " : "") +
+                (user != null ? user.getFullName() + " ## " : "") +
                         cmmt, "text/plain");
         cmts.addItem(ncmt);
 
