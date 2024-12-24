@@ -326,6 +326,10 @@ public class Utils {
         }
 
 
+        log.info("HtmlMail-Send.sender : " + sender);
+        log.info("HtmlMail-Send.mailTo : " + mailTo);
+        log.info("HtmlMail-Send.subject : " + subject);
+
         Properties props = new Properties();
 
         props.put("mail.debug","true");
@@ -386,6 +390,7 @@ public class Utils {
             BodyPart htmlBodyPart01 = new MimeBodyPart();
             htmlBodyPart01.setContent(getHTMLContentClear(pars.getString("BodyHTMLText")), "text/html; charset=UTF-8"); //5
             multipart.addBodyPart(htmlBodyPart01);
+            log.info("Html-Mail..Content: " + pars.getString("BodyHTMLText"));
         }
         String[] atchs = attachments.split("\\;");
         for (String atch : atchs){
@@ -446,6 +451,7 @@ public class Utils {
         cmmt = (cmmt == null || cmmt.isBlank() ? "" :
                     (code != null && !code.isBlank() ? "(" + code + ") " : "") + cmmt);
 
+        log.info("Save-Comment.01 : " + cmmt);
         if(cmmt.isBlank()) {return null;}
 
         IUser user = processInstance.getModificator();
@@ -463,18 +469,23 @@ public class Utils {
         }
         */
 
+        String xcmt = (user != null ? user.getFullName() + " ## " : "") + cmmt;
+        log.info("Save-Comment.02 : " + xcmt);
         IAdditionalItems<ICommentItem> cmts = processInstance.getCommentItems();
-        ICommentItem ncmt = server.createCommentItem(session,
-                (user != null ? user.getFullName() + " ## " : "") +
-                        cmmt, "text/plain");
+        ICommentItem ncmt = server.createCommentItem(session,xcmt, "text/plain");
         cmts.addItem(ncmt);
 
+        log.info("Save-Comment.99 : " + ncmt.hashCode());
         processInstance.setDescriptorValue("ObjectDescription", "");
         return ncmt;
     }
     public static String sendProcessMail(JSONObject pcfg, JSONObject bmks, String mnam) throws Exception {
         if(!pcfg.has("Mail." + mnam)){return "No-Config";}
+
+        log.info("Send-ProcessMail : " + mnam);
+
         JSONObject mdef = pcfg.getJSONObject("Mail." + mnam);
+        JSONObject ndef = new JSONObject();
         for(String keym : mdef.keySet()){
             String kval = mdef.getString(keym);
             for(String keyb : bmks.keySet()) {
@@ -484,17 +495,20 @@ public class Utils {
 
                     kval = kval.replaceAll(Pattern.quote("{{LINK@" + keyb + "}}"),
                             "<a href=\"" + bmks.getString(keyb) + "\">" + klab + "</a>");
+
+                    log.info("kval1[{{LINK@" + keyb + "}}]::" + kval);
                 }
                 if (kval.contains("{{" + keyb + "}}")) {
                     kval = kval.replaceAll(Pattern.quote("{{" + keyb + "}}"),
                             bmks.getString(keyb));
+                    log.info("kval2[{{" + keyb + "}}]::" + kval);
                 }
             }
 
-            mdef.put(keym, kval);
+            ndef.put(keym, kval);
         }
         try {
-            Utils.sendHTMLMail(mdef);
+            Utils.sendHTMLMail(ndef);
         } catch(Exception ex){
             log.error("** Send-Mail-Exception    : " + ex.getMessage());
             log.error("              Class       : " + ex.getClass());
@@ -509,7 +523,7 @@ public class Utils {
         webcubeUrl.append("&action=showtask&home=1&reusesession=1&id=").append(taskID);
         return webcubeUrl.toString();
     }
-    public static JSONObject getProcessBookmarks(ITask task, IProcessInstance processInstance, IInformationObject document) throws Exception {
+    public static JSONObject getProcessBookmarks(ITask task, IProcessInstance processInstance, String linkType, IInformationObject document, IUser currentApprover) throws Exception {
         JSONObject mcfg = Utils.getMailConfig();
 
         JSONObject rtrn = new JSONObject("{}");
@@ -517,14 +531,24 @@ public class Utils {
         rtrn.put("ProcessName", processInstance.getDisplayName());
         rtrn.put("Approveds", "");
         rtrn.put("Reviewers", "");
+        rtrn.put("CurrentApprover", "");
         rtrn.put("Status", "");
         rtrn.put("Comments", "");
-        rtrn.put("DoxisLink", mcfg.getString("webBase") + getTaskURL(processInstance.getID()));
+        String lnId = processInstance.getID();
+        log.info("LNID:" + lnId);
+        if(linkType.equals("task")){
+            lnId = task.getID();
+        }
+        log.info("LNID[" + linkType + "]:" + lnId);
+        rtrn.put("DoxisLink", mcfg.getString("webBase") + getTaskURL(lnId));
         rtrn.put("DoxisLink.label", processInstance.getDisplayName());
 
         IUser processOwner = processInstance.getOwner();
         if(processOwner != null){
             rtrn.put("ProcessOwner", (processOwner.getEMailAddress() != null ? processOwner.getEMailAddress() : ""));
+        }
+        if(currentApprover != null){
+            rtrn.put("CurrentApprover", (currentApprover.getEMailAddress() != null ? currentApprover.getEMailAddress() : ""));
         }
 
         List<String> apds = processInstance.getDescriptorValues("_Approves", String.class);
@@ -607,6 +631,7 @@ public class Utils {
             Collections.reverse(mcms);
             rtrn.put("Comments", String.join("\n\r --- --- --- --- \n\r", mcms));
         }
+        log.info("RTRN..LINK:" + rtrn.get("DoxisLink"));
         return rtrn;
     }
     public static JSONObject getProcessConfig(IInformationObject docu) throws Exception {
@@ -637,16 +662,16 @@ public class Utils {
 
         JSONObject rtrn = new JSONObject();
         for(List<String> line : rawTable) {
-            String name = line.get(0);
+            String name = line.get(0) + "";
             name = (name == null ? "" : name);
             if(name.isBlank()){continue;}
 
-            String catg = line.get(1);
+            String catg = line.get(1) + "";
             catg = (catg == null ? "" : catg);
             if(catg.isBlank()){continue;}
 
 
-            String cnfg = line.get(2);
+            String cnfg = line.get(2) + "";
             cnfg = (cnfg == null || cnfg.isBlank() ? "{}" : cnfg);
 
             JSONObject rctg = (rtrn.has(name) ? rtrn.getJSONObject(name) : new JSONObject());

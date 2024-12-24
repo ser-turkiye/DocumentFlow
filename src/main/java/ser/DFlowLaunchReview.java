@@ -49,16 +49,17 @@ public class DFlowLaunchReview extends UnifiedAgent {
 
             processInstance.setDescriptorValues("_Reviewers", rvws);
 
-            String pttl = "";
+            String pttl = "Process No:" + processInstance.getNumericID() ;
             if(Utils.hasDescriptor(document, "ObjectSubject")){
-                pttl = document.getDescriptorValue("ObjectSubject", String.class);
-                pttl = (pttl == null ? "" : pttl);
+                pttl += document.getDescriptorValue("ObjectSubject", String.class);
+               // pttl += (pttl == null ? "" : " / " + pttl);
             }
-            if(!pttl.isBlank()) {
+           // if(!pttl.isBlank()) {
                 processInstance.setSubject(pttl);
-            }
+            //}
             Utils.saveComment(processInstance,  task, "Launch-Review");
             Utils.linkedDocUpdate(processInstance, rvws);
+            Utils.copyDescriptors(document, processInstance);
             processInstance.commit();
 
             log.info("Tested.");
@@ -69,7 +70,7 @@ public class DFlowLaunchReview extends UnifiedAgent {
             log.error("Exception       : " + e.getMessage());
             log.error("    Class       : " + e.getClass());
             log.error("    Stack-Trace : " + Arrays.toString(e.getStackTrace()));
-            return resultError("Exception : " + e.getMessage());
+            return resultRestart("Exception : " + e.getMessage());
         }
 
         //processInstance.unlock();

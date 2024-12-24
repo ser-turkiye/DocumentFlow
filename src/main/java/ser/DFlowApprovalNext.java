@@ -116,7 +116,7 @@ public class DFlowApprovalNext extends UnifiedAgent {
             log.error("Exception       : " + e.getMessage());
             log.error("    Class       : " + e.getClass());
             log.error("    Stack-Trace : " + Arrays.toString(e.getStackTrace()));
-            return resultError("Exception : " + e.getMessage());
+            return resultRestart("Exception : " + e.getMessage());
         }
 
         //processInstance.unlock();

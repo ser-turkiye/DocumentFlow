@@ -3,6 +3,7 @@ package ser;
 import com.ser.blueline.IInformationObject;
 import com.ser.blueline.ILink;
 import com.ser.blueline.IOrgaElement;
+import com.ser.blueline.bpm.IBpmService;
 import com.ser.blueline.bpm.IProcessInstance;
 import com.ser.blueline.bpm.ITask;
 import com.ser.blueline.bpm.IWorkbasket;
@@ -50,15 +51,17 @@ public class DFlowProcessDone extends UnifiedAgent {
 
             document = Utils.getProcessDocument(processInstance);
             if(document == null){throw new Exception("Process Document not found.");}
-
-            processInstance.setDescriptorValue("ObjectStatus", task.getCode());
-
+            code = task.getCode();
+            IBpmService bpmService = getSes().getBpmService();
+            IProcessInstance newPI = bpmService.findProcessInstance(processInstance.getID());
+            newPI.setDescriptorValue("ObjectStatus", task.getCode());
+            newPI.commit();
 
             resetInfo(processInstance, task);
-            processInstance.commit();
 
             JSONObject pcfg = Utils.getProcessConfig(document);
-            JSONObject bmks = Utils.getProcessBookmarks(task, processInstance, document);
+            //JSONObject bmks = Utils.getProcessBookmarks(task, processInstance, document);
+            JSONObject bmks = Utils.getProcessBookmarks(task, processInstance, "processInstance", document, null);
             Utils.sendProcessMail(pcfg, bmks, "Finish." + code);
 
         } catch (Exception e) {
@@ -67,7 +70,7 @@ public class DFlowProcessDone extends UnifiedAgent {
             log.error("Exception       : " + e.getMessage());
             log.error("    Class       : " + e.getClass());
             log.error("    Stack-Trace : " + Arrays.toString(e.getStackTrace()));
-            return resultError("Exception : " + e.getMessage());
+            return resultRestart("Exception : " + e.getMessage());
         }
 
         //processInstance.unlock();
@@ -111,7 +114,8 @@ public class DFlowProcessDone extends UnifiedAgent {
                 proi.getDisplayName()
         );
         infObj.setDescriptorValue("ccmPrjDocWFTaskName",
-                task.getName() + (task.getCode() != null ? " (" + task.getCode() + ")" : "")
+                //task.getName() + (task.getCode() != null ? " (" + task.getCode() + ")" : "")
+                task.getName()
         );
         infObj.setDescriptorValue("ccmPrjDocWFTaskCreation",
                 (task.getCreationDate() == null ? "" : (new SimpleDateFormat("yyyyMMdd")).format(task.getCreationDate()))

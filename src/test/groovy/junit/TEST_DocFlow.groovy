@@ -20,9 +20,9 @@ class TEST_DocFlow {
 
     @Test
     void testForAgentResult() {
-        def agent = new DFlowApprovalNext()
+        def agent = new DFlowNewTask()
 
-        binding["AGENT_EVENT_OBJECT_CLIENT_ID"] = "ST09BPM_DFLOW24dd3af39c-bc31-4d9f-9fc3-7ec6ce0dafa5182024-10-11T16:00:45.653Z019"
+        binding["AGENT_EVENT_OBJECT_CLIENT_ID"] = "ST09BPM_DFLOW240142c8ab-4308-435b-98ed-bddf117cd9c3182024-12-23T15:37:05.604Z015"
 
         def result = (AgentExecutionResult)agent.execute(binding.variables)
         assert result.resultCode == 0

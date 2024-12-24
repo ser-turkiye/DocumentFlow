@@ -1,16 +1,19 @@
 package ser;
 
-import com.ser.blueline.*;
+import com.ser.blueline.IInformationObject;
+import com.ser.blueline.IUser;
 import com.ser.blueline.bpm.IProcessInstance;
 import com.ser.blueline.bpm.ITask;
+import com.ser.blueline.bpm.IWorkbasket;
 import de.ser.doxis4.agentserver.UnifiedAgent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONObject;
 
 import java.util.Arrays;
 
 
-public class DFlowSaveComment extends UnifiedAgent {
+public class DFlowNewTask extends UnifiedAgent {
     Logger log = LogManager.getLogger();
     IProcessInstance processInstance;
     IInformationObject qaInfObj;
@@ -35,14 +38,24 @@ public class DFlowSaveComment extends UnifiedAgent {
         task = getEventTask();
         processInstance = task.getProcessInstance();
         //processInstance.lock(task);
-
+        log.info("Start...DFlow-Appr....Task ID:" + task.getID());
         try {
 
             helper = new ProcessHelper(Utils.session);
             XTRObjects.setSession(Utils.session);
 
-            Utils.saveComment(processInstance, task,"");
-            processInstance.commit();
+            document = Utils.getProcessDocument(processInstance);
+            if(document == null){throw new Exception("Process Document not found.");}
+
+            IWorkbasket cwb = task.getCurrentWorkbasket();
+            if(cwb != null){
+                IUser cusr = (IUser) cwb.getAssociatedOrgaElement();
+                if(cusr != null) {
+                    JSONObject pcfg = Utils.getProcessConfig(document);
+                    JSONObject bmks = Utils.getProcessBookmarks(task, processInstance, "task", document, cusr);
+                    Utils.sendProcessMail(pcfg, bmks, task.getName());
+                }
+            }
             log.info("Tested.");
 
         } catch (Exception e) {
@@ -51,7 +64,7 @@ public class DFlowSaveComment extends UnifiedAgent {
             log.error("Exception       : " + e.getMessage());
             log.error("    Class       : " + e.getClass());
             log.error("    Stack-Trace : " + Arrays.toString(e.getStackTrace()));
-            return resultRestart("Exception : " + e.getMessage());
+            return resultError("Exception : " + e.getMessage());
         }
 
         //processInstance.unlock();

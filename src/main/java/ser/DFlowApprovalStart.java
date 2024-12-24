@@ -60,6 +60,7 @@ public class DFlowApprovalStart extends UnifiedAgent {
             }
             Utils.saveComment(processInstance, task, "Start-Approval");
             Utils.updateLinksTaskInfo(null, processInstance, "Start-Approval");
+            Utils.copyDescriptors(document, processInstance);
             processInstance.commit();
 
             log.info("Tested.");
@@ -70,7 +71,7 @@ public class DFlowApprovalStart extends UnifiedAgent {
             log.error("Exception       : " + e.getMessage());
             log.error("    Class       : " + e.getClass());
             log.error("    Stack-Trace : " + Arrays.toString(e.getStackTrace()));
-            return resultError("Exception : " + e.getMessage());
+            return resultRestart("Exception : " + e.getMessage());
         }
 
         //processInstance.unlock();
