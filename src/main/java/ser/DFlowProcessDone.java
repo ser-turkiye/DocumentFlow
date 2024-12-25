@@ -51,7 +51,11 @@ public class DFlowProcessDone extends UnifiedAgent {
 
             document = Utils.getProcessDocument(processInstance);
             if(document == null){throw new Exception("Process Document not found.");}
+
             code = task.getCode();
+            code = (code != null ? code.trim() : "Done");
+            code = (Arrays.asList("Done", "Completed", "Rejected", "Cancelled").contains(code) ? code : "Done");
+
             IBpmService bpmService = getSes().getBpmService();
             IProcessInstance newPI = bpmService.findProcessInstance(processInstance.getID());
             newPI.setDescriptorValue("ObjectStatus", task.getCode());

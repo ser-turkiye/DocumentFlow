@@ -39,15 +39,15 @@ dependencies {
 
     // This also provides all transient dependencies usually found in the Agent Server frameworks
     // The version number corresponds to the Java API (blueline) version, not the CSB version
-    implementation (group: 'de.ser.doxis4.agentserver', name: 'agentserver-pom', version: '12.2.0-1')
+    implementation (group: 'de.ser.doxis4.agentserver', name: 'agentserver-pom', version: '12.4.1')
 
     // Agent Tester Library
     // This also provides all transient dependencies usually found in the Agent Server frameworks
     // The version number corresponds to the Java API (blueline) version, not the CSB version
-    implementation (group: 'de.ser.doxis4.agentserver', name: 'agent-interfaces', version: '12.0.0')
-    implementation (group: 'de.ser.doxis4.agentserver', name: 'unified-agent', version: '12.2.0-1')
-    implementation (group: 'de.ser.doxis4.java-api', name: 'agent-utils', version: '12.0.0')
-    implementation (group: 'de.ser.doxis4.java-api', name: 'blueline', version: '12.0.0')
+    implementation (group: 'de.ser.doxis4.agentserver', name: 'agent-interfaces', version: '12.4.1')
+    implementation (group: 'de.ser.doxis4.agentserver', name: 'unified-agent', version: '12.4.1')
+    implementation (group: 'de.ser.doxis4.java-api', name: 'agent-utils', version: '12.4.1')
+    implementation (group: 'de.ser.doxis4.java-api', name: 'blueline', version: '12.4.1')
 
     // https://mvnrepository.com/artifact/com.sun.mail/jakarta.mail
     externalImplementation group: 'com.sun.mail', name: 'jakarta.mail', version: '2.0.1'
@@ -87,8 +87,8 @@ dependencies {
     testImplementation(sourceSets.agents.output)
     testImplementation 'junit:junit:4.13.2'
 
-    testImplementation (group: 'de.ser.doxis4.java-api', name: 'dx4-sessionpool-api', version: '12.0.0')
-    testImplementation (group: 'de.ser.doxis4.java-api', name: 'dx4-sessionpool-impl', version: '12.0.0')
+    testImplementation (group: 'de.ser.doxis4.java-api', name: 'dx4-sessionpool-api', version: '12.4.1')
+    testImplementation (group: 'de.ser.doxis4.java-api', name: 'dx4-sessionpool-impl', version: '12.4.1')
 }
 
 task copyExternalDependencies(type: Copy) {

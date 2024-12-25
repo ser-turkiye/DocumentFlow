@@ -38,7 +38,7 @@ public class DFlowNewTask extends UnifiedAgent {
         task = getEventTask();
         processInstance = task.getProcessInstance();
         //processInstance.lock(task);
-        log.info("Start...DFlow-Appr....Task ID:" + task.getID());
+
         try {
 
             helper = new ProcessHelper(Utils.session);

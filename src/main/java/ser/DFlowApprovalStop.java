@@ -48,8 +48,8 @@ public class DFlowApprovalStop extends UnifiedAgent {
 
             processInstance.setDescriptorValues("_Approves", Arrays.asList(""));
             processInstance.setDescriptorValue("_Approveds", "");
-            Utils.saveComment(processInstance, task, "Stop-Approval");
             Utils.updateLinksTaskInfo(null, processInstance, "Send-Back");
+            Utils.saveComment(processInstance, task, "Send Back");
             processInstance.commit();
 
             log.info("Tested.");

@@ -10,6 +10,7 @@ import com.ser.blueline.bpm.IWorkbasket;
 import de.ser.doxis4.agentserver.UnifiedAgent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -49,6 +50,9 @@ public class DFlowApprovalNext extends UnifiedAgent {
             helper = new ProcessHelper(Utils.session);
             XTRObjects.setSession(Utils.session);
 
+            document = Utils.getProcessDocument(processInstance);
+            if(document == null){throw new Exception("Process Document not found.");}
+
             List<String> apds = processInstance.getDescriptorValues("_Approves", String.class);
             apds = (apds == null ? new ArrayList<>() : apds);
 
@@ -71,8 +75,8 @@ public class DFlowApprovalNext extends UnifiedAgent {
             }
             if(naps == null || naps.size() == 0){naps = Arrays.asList("");}
 
-            Utils.saveComment(processInstance, task, "Approval");
             IUser cusr = null;
+            String cmad = "";
             if(!capr.isBlank()) {
                 Utils.linkedDocUpdate(processInstance, Arrays.asList(capr));
                 IWorkbasket cwb = Utils.bpm.getWorkbasket(capr);
@@ -95,6 +99,8 @@ public class DFlowApprovalNext extends UnifiedAgent {
 
             processInstance.setDescriptorValue("_CurrentApprover", capr);
             processInstance.setDescriptorValues("_Approvers", naps);
+
+            Utils.saveComment(processInstance, task, "Approval");
             processInstance.commit();
 
             String pttl = "";
