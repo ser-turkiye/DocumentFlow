@@ -21,11 +21,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.lang.reflect.Array;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
@@ -490,23 +486,47 @@ public class Utils {
             String kval = mdef.getString(keym);
             for(String keyb : bmks.keySet()) {
                 if (kval.contains("{{LINK@" + keyb + "}}")) {
+                    kval = kval.replaceAll(Pattern.quote("{{LINK@" + keyb + "}}"),
+                            bmks.getString(keyb));
+                    //log.info("kval2[{{" + keyb + "}}]::" + kval);
+                }
+                if (kval.contains("{{LINK@" + keyb + ".html}}")) {
                     String klab = bmks.has(keyb + ".label") && bmks.getString(keyb + ".label") != null &&
                             !bmks.getString(keyb + ".label").isBlank() ? bmks.getString(keyb + ".label") : bmks.getString(keyb);
 
-                    kval = kval.replaceAll(Pattern.quote("{{LINK@" + keyb + "}}"),
+                    kval = kval.replaceAll(Pattern.quote("{{LINK@" + keyb + ".html}}"),
                             "<a href=\"" + bmks.getString(keyb) + "\">" + klab + "</a>");
 
-                    log.info("kval1[{{LINK@" + keyb + "}}]::" + kval);
+                    //log.info("kval1[{{LINK@" + keyb + "}}]::" + kval);
                 }
                 if (kval.contains("{{" + keyb + "}}")) {
                     kval = kval.replaceAll(Pattern.quote("{{" + keyb + "}}"),
                             bmks.getString(keyb));
-                    log.info("kval2[{{" + keyb + "}}]::" + kval);
+                    //log.info("kval2[{{" + keyb + "}}]::" + kval);
                 }
             }
 
             ndef.put(keym, kval);
         }
+
+        try {
+            String spth = Conf.Paths.MainPath + "/" + UUID.randomUUID().toString() + "$" + mnam;
+            BufferedWriter sjsn = Files.newBufferedWriter(Paths.get(spth + ".json"));
+            sjsn.write(ndef.toString());
+            sjsn.close();
+
+            if(ndef.has("BodyHTMLText") && ndef.getString("BodyHTMLText") != null && !ndef.getString("BodyHTMLText").isBlank()){
+                BufferedWriter shtm = Files.newBufferedWriter(Paths.get(spth + "BodyHTMLText.html"));
+                shtm.write(ndef.getString("BodyHTMLText").toString());
+                shtm.close();
+            }
+
+        } catch(Exception ex){
+            log.error("** Save-Mail-Defn    : " + ex.getMessage());
+            log.error("              Class       : " + ex.getClass());
+            log.error("              Stack-Trace : " + Arrays.toString(ex.getStackTrace()));
+        }
+
         try {
             Utils.sendHTMLMail(ndef);
         } catch(Exception ex){
@@ -535,12 +555,12 @@ public class Utils {
         rtrn.put("Status", "");
         rtrn.put("Comments", "");
         String lnId = processInstance.getID();
-        log.info("LNID:" + lnId);
         if(linkType.equals("task")){
             lnId = task.getID();
         }
-        log.info("LNID[" + linkType + "]:" + lnId);
-        rtrn.put("DoxisLink", mcfg.getString("webBase") + getTaskURL(lnId));
+        String tlnk = mcfg.getString("webBase") + getTaskURL(lnId);
+        rtrn.put("DoxisLink", tlnk);
+        rtrn.put("DoxisLink.address", tlnk);
         rtrn.put("DoxisLink.label", processInstance.getDisplayName());
 
         IUser processOwner = processInstance.getOwner();
@@ -631,7 +651,7 @@ public class Utils {
             Collections.reverse(mcms);
             rtrn.put("Comments", String.join("\n\r --- --- --- --- \n\r", mcms));
         }
-        log.info("RTRN..LINK:" + rtrn.get("DoxisLink"));
+        //log.info("RTRN..LINK:" + rtrn.get("DoxisLink"));
         return rtrn;
     }
     public static JSONObject getProcessConfig(IInformationObject docu) throws Exception {

@@ -1,22 +1,17 @@
 package ser;
 
 import com.ser.blueline.IInformationObject;
-import com.ser.blueline.IUser;
+import com.ser.blueline.ILink;
 import com.ser.blueline.bpm.IProcessInstance;
 import com.ser.blueline.bpm.ITask;
-import com.ser.blueline.bpm.IWorkbasket;
 import de.ser.doxis4.agentserver.UnifiedAgent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONObject;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 
 
-public class DFlowNewTask extends UnifiedAgent {
+public class DFlowInitApproval extends UnifiedAgent {
     Logger log = LogManager.getLogger();
     IProcessInstance processInstance;
     IInformationObject qaInfObj;
@@ -32,10 +27,7 @@ public class DFlowNewTask extends UnifiedAgent {
         if(getEventTask().getProcessInstance().findLockInfo().getOwnerID() != null){
             return resultRestart("Locked process instance ...");
         }
-
-        //(new JSONObject()).put("BodyHTMLText", Files.readString(Path.of("C:/tmp2/dflow-mailtemplates/Approval.html"), StandardCharsets.UTF_8)).toString()
-
-        Utils.loadDirectory(Conf.Paths.MainPath);
+        //Utils.loadDirectory(Conf.Paths.MainPath);
 
         Utils.session = getSes();
         Utils.bpm = getBpm();
@@ -53,15 +45,23 @@ public class DFlowNewTask extends UnifiedAgent {
             document = Utils.getProcessDocument(processInstance);
             if(document == null){throw new Exception("Process Document not found.");}
 
-            IWorkbasket cwb = task.getCurrentWorkbasket();
-            if(cwb != null){
-                IUser cusr = (IUser) cwb.getAssociatedOrgaElement();
-                if(cusr != null) {
-                    JSONObject pcfg = Utils.getProcessConfig(document);
-                    JSONObject bmks = Utils.getProcessBookmarks(task, processInstance, "task", document, cusr);
-                    Utils.sendProcessMail(pcfg, bmks, task.getName());
-                }
-            }
+            IProcessInstance newApproval = helper.buildNewProcessInstanceForID(Conf.ProcessInstances.Approval);
+            //newApproval.setMainInformationObjectID(processInstance.getID());
+            Utils.copyDescriptors(processInstance, newApproval);
+            newApproval.getLoadedInformationObjectLinks().addInformationObject(document.getID());
+            //newApproval.getLoadedInformationObjectLinks().addInformationObject(processInstance.getID());
+            newApproval.setOwner(processInstance.getOwner());
+
+            //List<String> rvws = Utils.getReviewers(processInstance);
+            newApproval.commit();
+
+            //processInstance.getLoadedInformationObjectLinks().addInformationObject(newApproval.getID());
+            processInstance.commit();
+
+            //Utils.server.createLink(Utils.session, task.getID(), null, newApproval.getID()).commit();
+            //Utils.server.createLink(Utils.session, processInstance.getID(), null, newApproval.getID()).commit();
+            //Utils.server.createLink(Utils.session, newApproval.getID(), null, processInstance.getID()).commit();
+
             log.info("Tested.");
 
         } catch (Exception e) {
@@ -70,7 +70,7 @@ public class DFlowNewTask extends UnifiedAgent {
             log.error("Exception       : " + e.getMessage());
             log.error("    Class       : " + e.getClass());
             log.error("    Stack-Trace : " + Arrays.toString(e.getStackTrace()));
-            return resultError("Exception : " + e.getMessage());
+            return resultRestart("Exception : " + e.getMessage());
         }
 
         //processInstance.unlock();

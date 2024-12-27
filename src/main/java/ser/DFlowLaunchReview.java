@@ -6,6 +6,7 @@ import com.ser.blueline.bpm.ITask;
 import de.ser.doxis4.agentserver.UnifiedAgent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONObject;
 
 import java.util.*;
 
@@ -61,6 +62,11 @@ public class DFlowLaunchReview extends UnifiedAgent {
             Utils.linkedDocUpdate(processInstance, rvws);
             Utils.copyDescriptors(document, processInstance);
             processInstance.commit();
+
+            JSONObject pcfg = Utils.getProcessConfig(document);
+            //JSONObject bmks = Utils.getProcessBookmarks(task, processInstance, document);
+            JSONObject bmks = Utils.getProcessBookmarks(task, processInstance, "processInstance", document, null);
+            Utils.sendProcessMail(pcfg, bmks, "Finish.Done");
 
             log.info("Tested.");
 
