@@ -61,7 +61,8 @@ public class DFlowProcessDone extends UnifiedAgent {
             newPI.setDescriptorValue("ObjectStatus", task.getCode());
             newPI.commit();
 
-            resetInfo(processInstance, task);
+            //resetInfo(processInstance, task);
+            Utils.updateLinksTaskInfo(null, processInstance, code);
 
             JSONObject pcfg = Utils.getProcessConfig(document);
             //JSONObject bmks = Utils.getProcessBookmarks(task, processInstance, document);
@@ -81,6 +82,7 @@ public class DFlowProcessDone extends UnifiedAgent {
         log.info("Finished");
         return resultSuccess("Ended successfully [" + code + "]");
     }
+    /*
     public static String resetInfo(IProcessInstance processInstance, ITask task){
         List<IInformationObject> list = new ArrayList<>();
         IInformationObject parent = processInstance.getMainInformationObject();
@@ -130,4 +132,5 @@ public class DFlowProcessDone extends UnifiedAgent {
 
         return true;
     }
+     */
 }
